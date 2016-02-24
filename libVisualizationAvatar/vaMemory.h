@@ -167,9 +167,8 @@ namespace VisualizationSystem {
         unsigned char   isLimit;
         float           UpBound[3];
         float           LowerBound[3];
-        /* Augmented matrix/vertex is used to calculate the process matrix
-         * in CCD inverse kinematic algorithm. This matrix means the "local"
-         * translation/rotation in the CCD process.
+        /* Augmented matrix/vertex is used to calculate the process matrix in CCD inverse kinematic algorithm.
+         * This matrix means the "local" translation/rotation in the CCD process.
         */
         float           cVertex[3];
         float           augmentedMatrix[16];

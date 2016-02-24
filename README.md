@@ -1,6 +1,6 @@
 # SEngine
 
-Sayers Engine is a simple visualization engin based on openGL.
+Sayers Engine is a simple visualization engin based on openGL, MikuMikuDance and MikuMiku Editor.
 
 ============================
 

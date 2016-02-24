@@ -752,79 +752,75 @@ static void truncateRotationAngle(float *baseVertex, float *parentVertex, float 
 
 static void getCCDAugmentedMatrix(float *baseVertex, float *rotationVector, float rotationDot, struct IKChainUnit *pIKUnit, float *augmentedMatrix)
 {
-    sutQuaternionOperator IKQuaternion, IKQuaternionResult, IKQuaternionTmp, IKQuaternionX, IKQuaternionY, IKQuaternionZ;
-    sutQuaternionOperator quaternionYawPitchRoll;
+    //printf("\n------------------------------------------\ngetCCDAugmentedMatrix\n");
+    sutQuaternionOperator IKQuaternion, IKQuaternionResult, IKQuaternionTmp;
     IKQuaternion.init();
     IKQuaternion.asRotation(rotationVector[0], rotationVector[1], rotationVector[2], acos(rotationDot) * 180.0f /3.1415926);
     IKQuaternion.toMatrix();
 
-   /* float quaternion[4] ;
-    IKQuaternion.getQuaternion(quaternion);
-    float x = quaternion[0], y = quaternion[1], z = quaternion[2], w = quaternion[3];
-    float xRadius = atan2(2*y*w - 2*x*z, 1 - 2*y*y - 2*z*z);
-    float yRadius = atan2(2*x*w - 2*y*z, 1 - 2*x*x - 2*z*z);
-    float zRadius =  asin(2*x*y + 2*z*w);
-    printf("xRadius %f , yRadius %f , zRadius %f    ", xRadius, yRadius, zRadius);
-    printf("xRadius %f , yRadius %f , zRadius %f\n", xRadius /3.1415926535f, yRadius /3.1415926535f, zRadius /3.1415926535f);
-
-    if(xRadius > pIKUnit->UpBound[0]) xRadius =  pIKUnit->UpBound[0];
-    if(yRadius > pIKUnit->UpBound[1]) yRadius =  pIKUnit->UpBound[1];
-    if(zRadius > pIKUnit->UpBound[2]) zRadius =  pIKUnit->UpBound[2];
-    if(xRadius < pIKUnit->LowerBound[0]) xRadius =  pIKUnit->LowerBound[0];
-    if(yRadius < pIKUnit->LowerBound[1]) yRadius =  pIKUnit->LowerBound[1];
-    if(zRadius < pIKUnit->LowerBound[2]) zRadius =  pIKUnit->LowerBound[2];
-    IKQuaternionX.init();
-    IKQuaternionY.init();
-    IKQuaternionZ.init();
-    IKQuaternionX.asRotation(1.0f, 0.0f, 0.0f, xRadius * 180.0f /3.1415926);
-    IKQuaternionY.asRotation(0.0f, 1.0f, 0.0f, yRadius * 180.0f /3.1415926);
-    IKQuaternionZ.asRotation(0.0f, 0.0f, 1.0f, zRadius * 180.0f /3.1415926);
-    IKQuaternionX.toMatrix();
-    IKQuaternionY.toMatrix();
-    IKQuaternionZ.toMatrix();*/
-    float quaternion[4], quaternionOld[4]  ;
+    float quaternionTruncate[4], quaternionNew[4], quaternionOld[4]  ;
 
     pIKUnit->IKQuaternion.getQuaternion(quaternionOld);
     pIKUnit->IKQuaternion.mul(&IKQuaternion);
-    float x = quaternion[0], y = quaternion[1], z = quaternion[2], w = quaternion[3];
-    float radiusYaw =  atan2(2*x*y + 2*w*z, w*w + x*x - y*y - z*z);
-    float radiusPitch = -asin(2*w*y - 2*x*z);
-    float radiusRoll  = -atan2(2*y*z + 2*w*x, -w*w + x*x + y*y - z*z);
+    pIKUnit->IKQuaternion.getQuaternion(quaternionNew);
+    float x = quaternionNew[0];
+    float y = quaternionNew[1];
+    float z = quaternionNew[2];
+    float w = quaternionNew[3];
+    float radiusRoll  = atan2(2.0f *(w *x + y *z), 1.0f -2.0f *(x *x +y *y));
+    float radiusPitch = asin (2.0f *(w *x - y *z));
+    float radiusYaw   = atan2(2.0f *(w *z + x *y), 1.0f -2.0f *(y *y +z *z));
 
-    printf("roll %f , pitch %f , yaw %f    ", radiusRoll, radiusPitch, radiusYaw);
-    radiusRoll = 0.0f;
-    radiusPitch = 0.0f;
-    //radiusYaw = 0.0f;
-    if(radiusYaw > pIKUnit->UpBound[0])            radiusYaw =  pIKUnit->UpBound[0];
-    else if(radiusYaw < pIKUnit->LowerBound[0])    radiusYaw =  pIKUnit->LowerBound[0];
-    /*if(radiusRoll > pIKUnit->UpBound[2])        radiusRoll =  pIKUnit->UpBound[2];
-    if(radiusRoll < pIKUnit->LowerBound[2])     radiusRoll =  pIKUnit->LowerBound[2];
-    if(radiusPitch > pIKUnit->UpBound[1])       radiusPitch =  pIKUnit->UpBound[1];
-    if(radiusPitch < pIKUnit->LowerBound[1])    radiusPitch =  pIKUnit->LowerBound[1];
-    if(radiusYaw > pIKUnit->UpBound[0])         radiusYaw =  pIKUnit->UpBound[0];
-    if(radiusYaw < pIKUnit->LowerBound[0])      radiusYaw =  pIKUnit->LowerBound[0];*/
-    printf("roll %f , pitch %f , yaw %f  \n", radiusRoll, radiusPitch, radiusYaw);
+    if(radiusRoll  > pIKUnit->UpBound[0]) radiusRoll        =  pIKUnit->UpBound[0];
+    if(radiusRoll  < pIKUnit->LowerBound[0]) radiusRoll     =  pIKUnit->LowerBound[0];
+    if(radiusPitch > pIKUnit->UpBound[1]) radiusPitch       =  pIKUnit->UpBound[1];
+    if(radiusPitch < pIKUnit->LowerBound[1]) radiusPitch    =  pIKUnit->LowerBound[1];
+    if(radiusYaw   > pIKUnit->UpBound[2]) radiusYaw         =  pIKUnit->UpBound[2];
+    if(radiusYaw   < pIKUnit->LowerBound[2]) radiusYaw      =  pIKUnit->LowerBound[2];
 
-    quaternion[0] = cos(radiusRoll/2) *cos(radiusPitch/2) *cos(radiusYaw/2) +sin(radiusRoll/2) *sin(radiusPitch/2) *sin(radiusYaw/2);
-    quaternion[1] = sin(radiusRoll/2) *cos(radiusPitch/2) *cos(radiusYaw/2) -cos(radiusRoll/2) *sin(radiusPitch/2) *sin(radiusYaw/2);
-    quaternion[2] = cos(radiusRoll/2) *sin(radiusPitch/2) *cos(radiusYaw/2) +sin(radiusRoll/2) *cos(radiusPitch/2) *sin(radiusYaw/2);
-    quaternion[3] = cos(radiusRoll/2) *cos(radiusPitch/2) *sin(radiusYaw/2) -sin(radiusRoll/2) *sin(radiusPitch/2) *cos(radiusYaw/2);
+    quaternionTruncate[0] = cos(radiusRoll/2) *cos(radiusPitch/2) *cos(radiusYaw/2) +sin(radiusRoll/2) *sin(radiusPitch/2) *sin(radiusYaw/2);
+    quaternionTruncate[1] = sin(radiusRoll/2) *cos(radiusPitch/2) *cos(radiusYaw/2) -cos(radiusRoll/2) *sin(radiusPitch/2) *sin(radiusYaw/2);
+    quaternionTruncate[2] = cos(radiusRoll/2) *sin(radiusPitch/2) *cos(radiusYaw/2) +sin(radiusRoll/2) *cos(radiusPitch/2) *sin(radiusYaw/2);
+    quaternionTruncate[3] = cos(radiusRoll/2) *cos(radiusPitch/2) *sin(radiusYaw/2) -sin(radiusRoll/2) *sin(radiusPitch/2) *cos(radiusYaw/2);
     pIKUnit->IKQuaternion.init();
-    pIKUnit->IKQuaternion.setRotation(quaternion[1], quaternion[2], quaternion[3], quaternion[0]);
+    pIKUnit->IKQuaternion.setQuaternion(quaternionTruncate[1], quaternionTruncate[2], quaternionTruncate[3], quaternionTruncate[0]);
     pIKUnit->IKQuaternion.toMatrix();
-    pIKUnit->IKQuaternion.getQuaternion(quaternion);
+    pIKUnit->IKQuaternion.getQuaternion(quaternionTruncate);
 
-    /* pIKUnit->IKQuaternion =  IKQuaternionResult * pIKUnit->IKQuaternion(Old)
-     * IKQuaternionResult =  pIKUnit->IKQuaternion * Conjugated(pIKUnit->IKQuaternion(Old))
+    /** Assume :
+     *      pIKUnit->IKQuaternion(Truncate) = IKQuaternionResult * pIKUnit->IKQuaternion(Old)
+     *
+     * Multiple the Inverse(pIKUnit->IKQuaternion(Old)) :
+     *      pIKUnit->IKQuaternion(Truncate) * Inverse(pIKUnit->IKQuaternion(Old)) = IKQuaternionResult * pIKUnit->IKQuaternion(Old) * Inverse(pIKUnit->IKQuaternion(Old))
+     *
+     * Then :
+     *      IKQuaternionResult = pIKUnit->IKQuaternion(Truncate) * Inverse(pIKUnit->IKQuaternion(Old))
     */
     IKQuaternionTmp.init();
-    IKQuaternionTmp.setRotation(quaternionOld[0], quaternionOld[1],quaternionOld[2],quaternionOld[3]);
+    IKQuaternionTmp.setQuaternion(quaternionOld[0], quaternionOld[1],quaternionOld[2],quaternionOld[3]);
     IKQuaternionTmp.asConjugated();
     IKQuaternionResult.init();
-    IKQuaternionResult.setRotation(quaternion[0], quaternion[1],quaternion[2], quaternion[3]);
+    IKQuaternionResult.setQuaternion(quaternionTruncate[0], quaternionTruncate[1],quaternionTruncate[2], quaternionTruncate[3]);
     IKQuaternionResult.mul(&IKQuaternionTmp);
     IKQuaternionResult.toMatrix();
 
+    /** Assume :
+     *      pIKUnit->IKQuaternion(Truncate) = pIKUnit->IKQuaternion(Old) * IKQuaternionResult
+     *
+     * Multiple the Inverse(pIKUnit->IKQuaternion(Old)) :
+     *      Inverse(pIKUnit->IKQuaternion(Old)) * pIKUnit->IKQuaternion(Truncate) = Inverse(pIKUnit->IKQuaternion(Old)) * pIKUnit->IKQuaternion(Old) * IKQuaternionResult
+     *
+     * Then :
+     *      IKQuaternionResult = Inverse(pIKUnit->IKQuaternion(Old)) * pIKUnit->IKQuaternion(Truncate);
+     *
+    */
+    /*IKQuaternionTmp.init();
+    IKQuaternionTmp.setQuaternion(quaternionOld[0], quaternionOld[1],quaternionOld[2],quaternionOld[3]);
+    IKQuaternionTmp.asConjugated();
+    IKQuaternionResult.init();
+    IKQuaternionResult.setQuaternion(quaternionTruncate[0], quaternionTruncate[1],quaternionTruncate[2], quaternionTruncate[3]);
+    IKQuaternionTmp.mul(&IKQuaternionResult);
+    IKQuaternionTmp.toMatrix();*/
 
     float matrix4x4[16];
     float BoneVertexMatrix[16];
@@ -911,6 +907,7 @@ update_InverseKinematics(struct vaMemoryContext *vaMemory,
             struct vaSkeletonNodeContext *pBone = (skeletonCtx->chainNodeSet + pIKUnit->LinkBone);
             memcpy(pIKUnit->cVertex, pBone->pBoneVertex, sizeof(float) *3);
             memcpy(pIKUnit->augmentedMatrix, IdentityMatrix, sizeof(float) *16);
+            pIKUnit->IKQuaternion.init();
         }
 
         // apply CCD algorithm (IK algorithm)
@@ -919,36 +916,35 @@ update_InverseKinematics(struct vaMemoryContext *vaMemory,
             for(ci = 0 ; ci < pIKChain->IKChainCount ; ci++) {
                 struct IKChainUnit *pIKUnit = (pIKChain->IKChain + ci);
                 float *baseVertex = pIKUnit->cVertex;
-                float CCDMatrix[16];
+                float CCDStepMatrix[16];
 
-                // Calculate the augmented matrix
+                // Calculate the Step matrix by CCD algorithm.
                 if(pIKUnit->isLimit ) {
-
                     /** Below algorithm is under construct.
                     */
                     struct vaSkeletonNodeContext *pIKBone = (skeletonCtx->chainNodeSet + pIKUnit->LinkBone);
                     float dotProduct, outerProduct[3], supportVertex[3];
                     dotProduct = getRotationVector(tVertex, ReachVertex, baseVertex, outerProduct);
                     getRotationSupportVertex(baseVertex, pIKBone->Parnet->pBoneVertex, outerProduct, dotProduct, supportVertex);
-                    getCCDAugmentedMatrix(baseVertex, outerProduct, dotProduct, pIKUnit, CCDMatrix);
+                    getCCDAugmentedMatrix(baseVertex, outerProduct, dotProduct, pIKUnit, CCDStepMatrix);
                 }
                 else {
-                    CCD_calcAugmentedMatrix(tVertex, ReachVertex, baseVertex, pIKChain->MaxAngle, CCDMatrix);
+                    CCD_calcAugmentedMatrix(tVertex, ReachVertex, baseVertex, pIKChain->MaxAngle, CCDStepMatrix);
                 }
 
-                // Superpose the matrix into IK vertex & matrix
+                // Superpose the matrix into the vertex & matrix on "nodes in the IK chain".
                 for(ui = 0 ; ui <= ci ; ui++) {
                     struct IKChainUnit *pUnit = (pIKChain->IKChain + ui);
-                    MatrixOperator_Mul_4x4M_4x4M(CCDMatrix, pUnit->augmentedMatrix, matrix4x4);
+                    MatrixOperator_Mul_4x4M_4x4M(CCDStepMatrix, pUnit->augmentedMatrix, matrix4x4);
                     memcpy(pUnit->augmentedMatrix, matrix4x4, sizeof(float)*16);
-                    MulTransformMatrix(CCDMatrix, pUnit->cVertex ,1 ,vertex3);
+                    MulTransformMatrix(CCDStepMatrix, pUnit->cVertex ,1 ,vertex3);
                     memcpy(pUnit->cVertex, vertex3, sizeof(float)*3);
                 }
 
-                //superpose the matrix into target vertex & matrix
-                MatrixOperator_Mul_4x4M_4x4M(CCDMatrix, tAugmentedMatrix ,matrix4x4);
+                //superpose the matrix into vertex & matrix of "target node"
+                MatrixOperator_Mul_4x4M_4x4M(CCDStepMatrix, tAugmentedMatrix ,matrix4x4);
                 memcpy(tAugmentedMatrix, matrix4x4, sizeof(float)*16);
-                MulTransformMatrix(CCDMatrix, tVertex ,1, vertex3);
+                MulTransformMatrix(CCDStepMatrix, tVertex ,1, vertex3);
                 memcpy(tVertex, vertex3, sizeof(float)*3);
             }
         }

@@ -20,7 +20,7 @@ public:
     void init();
     void asConjugated();
     void asRotation(float RotationVector_x , float RotationVector_y ,float RotationVector_z ,float RotationAngle);
-    void setRotation(float ax ,float by ,float cz, float w);
+    void setQuaternion(float ax ,float by ,float cz, float w);
     void setTranslate(float Tx ,float Ty ,float Tz);
     float *toMatrix();
     float *getMatrix();
@@ -31,6 +31,7 @@ public:
     void add(sutQuaternionOperator *Multiplier);
 
 private:
+    int isIdentity;
     struct sutQuaternionContext QuaternionCtx ;
     float MatrixCtx[4][4];
 };

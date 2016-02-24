@@ -9,7 +9,7 @@ static const float PI = 3.14159 /180.0f;
 //--------------------------------------------------------------------------------------
 void sutQuaternionOperator::init()
 {
-
+    isIdentity =1;
     QuaternionCtx.a = 0.0f;
     QuaternionCtx.b = 0.0f;
     QuaternionCtx.c = 0.0f;
@@ -51,12 +51,13 @@ void sutQuaternionOperator::setTranslate(float Tx ,float Ty ,float Tz)
     QuaternionCtx.Translate[2] = Tz;
 }
 //-------------------------------------------------------------------------------------
-void sutQuaternionOperator::setRotation(float ax , float by , float cz, float w)
+void sutQuaternionOperator::setQuaternion(float ax , float by , float cz, float w)
 {
     QuaternionCtx.w = w;
     QuaternionCtx.a = ax;
     QuaternionCtx.b = by;
     QuaternionCtx.c = cz;
+    isIdentity = 0;
 }
 //--------------------------------------------------------------------------------------
 void sutQuaternionOperator::asRotation(float RotationVector_x , float RotationVector_y ,float RotationVector_z ,float RotationAngle)
@@ -71,6 +72,7 @@ void sutQuaternionOperator::asRotation(float RotationVector_x , float RotationVe
     QuaternionCtx.b = RotationVector_y *invMagnitude *tmp_sin;
     QuaternionCtx.c = RotationVector_z *invMagnitude *tmp_sin;
     QuaternionCtx.w = cos(RotationAngle *0.5f *PI) ;
+    isIdentity = 0;
 }
 //--------------------------------------------------------------------------------------
 float *sutQuaternionOperator::getMatrix()
@@ -138,24 +140,32 @@ void sutQuaternionOperator::getQuaternion(float *dstAry)
 //--------------------------------------------------------------------------------------
 void sutQuaternionOperator::mul(sutQuaternionOperator *Multiplier)
 {
-
     struct sutQuaternionContext tmp ;
-    tmp.a = QuaternionCtx.w * Multiplier->QuaternionCtx.a +
-            QuaternionCtx.a * Multiplier->QuaternionCtx.w +
-            QuaternionCtx.b * Multiplier->QuaternionCtx.c -
-            QuaternionCtx.c * Multiplier->QuaternionCtx.b ;
-    tmp.b = QuaternionCtx.w * Multiplier->QuaternionCtx.b -
-            QuaternionCtx.a * Multiplier->QuaternionCtx.c +
-            QuaternionCtx.b * Multiplier->QuaternionCtx.w +
-            QuaternionCtx.c * Multiplier->QuaternionCtx.a ;
-    tmp.c = QuaternionCtx.w * Multiplier->QuaternionCtx.c +
-            QuaternionCtx.a * Multiplier->QuaternionCtx.b -
-            QuaternionCtx.b * Multiplier->QuaternionCtx.a +
-            QuaternionCtx.c * Multiplier->QuaternionCtx.w ;
-    tmp.w = QuaternionCtx.w * Multiplier->QuaternionCtx.w -
-            QuaternionCtx.a * Multiplier->QuaternionCtx.a -
-            QuaternionCtx.b * Multiplier->QuaternionCtx.b -
-            QuaternionCtx.c * Multiplier->QuaternionCtx.c;
+    if(isIdentity) {
+        tmp.a = Multiplier->QuaternionCtx.a;
+        tmp.b = Multiplier->QuaternionCtx.b;
+        tmp.c = Multiplier->QuaternionCtx.c;
+        tmp.w = Multiplier->QuaternionCtx.w;
+        isIdentity = 0;
+    }
+    else {
+        tmp.a = QuaternionCtx.w * Multiplier->QuaternionCtx.a +
+                QuaternionCtx.a * Multiplier->QuaternionCtx.w +
+                QuaternionCtx.b * Multiplier->QuaternionCtx.c -
+                QuaternionCtx.c * Multiplier->QuaternionCtx.b ;
+        tmp.b = QuaternionCtx.w * Multiplier->QuaternionCtx.b -
+                QuaternionCtx.a * Multiplier->QuaternionCtx.c +
+                QuaternionCtx.b * Multiplier->QuaternionCtx.w +
+                QuaternionCtx.c * Multiplier->QuaternionCtx.a ;
+        tmp.c = QuaternionCtx.w * Multiplier->QuaternionCtx.c +
+                QuaternionCtx.a * Multiplier->QuaternionCtx.b -
+                QuaternionCtx.b * Multiplier->QuaternionCtx.a +
+                QuaternionCtx.c * Multiplier->QuaternionCtx.w ;
+        tmp.w = QuaternionCtx.w * Multiplier->QuaternionCtx.w -
+                QuaternionCtx.a * Multiplier->QuaternionCtx.a -
+                QuaternionCtx.b * Multiplier->QuaternionCtx.b -
+                QuaternionCtx.c * Multiplier->QuaternionCtx.c;
+    }
 
     /* Normalizing input vector */
     float len = tmp.a *tmp.a + tmp.b*tmp.b + tmp.c*tmp.c + tmp.w*tmp.w;
@@ -187,7 +197,7 @@ struct sutQuaternionContext *sutQuaternionOperator::getQuaternionCtx() {
 void sutQuaternionOperator::asConjugated()
 {
     float len = QuaternionCtx.a *QuaternionCtx.a + QuaternionCtx.b*QuaternionCtx.b + QuaternionCtx.c*QuaternionCtx.c + QuaternionCtx.w*QuaternionCtx.w;
-    float invMagnitude = (len < 0.00001) ? 1.0f : 1.0f / sqrtf(len);
+    float invMagnitude = (len < 0.00001) ? 1.0f : 1.0f / (len);
 
     QuaternionCtx.a = -QuaternionCtx.a *invMagnitude;
     QuaternionCtx.b = -QuaternionCtx.b *invMagnitude;

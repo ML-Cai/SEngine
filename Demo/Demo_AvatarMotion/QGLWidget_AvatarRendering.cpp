@@ -314,7 +314,7 @@ void QGLWidget_AvatarRendering::paintGL()
         src_Avatar->setCameraLocation(eyeX, eyeY, eyeZ);
         src_Avatar->visualize(ProjectionMatrix, ModelViewMatrix, VA_RENDERING_BODY);
         //src_Avatar->visualize(ProjectionMatrix, ModelViewMatrix, VA_RENDERING_BODY | VA_RENDERING_SKELETON);
-        src_Avatar->visualize(ProjectionMatrix, ModelViewMatrix, VA_RENDERING_SKELETON);
+        //src_Avatar->visualize(ProjectionMatrix, ModelViewMatrix, VA_RENDERING_SKELETON);
     }
 }
 // ----------------------------------------------------------------------------------

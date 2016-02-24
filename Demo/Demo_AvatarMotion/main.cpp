@@ -31,6 +31,7 @@ void *elapse(void *ptr)
     //VMD.load(VMDCtx, "./VMD/dance_1/", "dance_1.vmd");
     VMD.load(VMDCtx, "./VMD/", "electric_angel motion.vmd");
    // VMD.load(VMDCtx, "./VMD/walk_1/", "walk_front.vmd");
+    //VMD.load(VMDCtx, "./VMD/", "senbonzakura(by Danthrox).vmd");
 
     //------------------------------------
     UniverseSpace::WorldLineContext WorldLine;
@@ -47,8 +48,8 @@ void *elapse(void *ptr)
         gettimeofday(&TimeStampEnd, NULL);
         float StepTime = (TimeStampEnd.tv_sec -TimeStampStart.tv_sec)*1000000.0 +(TimeStampEnd.tv_usec -TimeStampStart.tv_usec);
         float ElapseTime =(StepTime /1000000.0f) *30.0f;
+        //WorldLine.elapse(ElapseTime);
         WorldLine.elapse(ElapseTime);
-        //WorldLine.elapse(10);
     }
 }
 

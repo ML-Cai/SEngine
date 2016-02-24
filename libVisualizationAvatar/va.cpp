@@ -286,19 +286,19 @@ setBoneQuaternion(int dstBone_ID, \
     fBone->isTouch = 1;
     switch(setMode) {
     case PostureMode_Replace:
-        fBone->QuaternionCtx.setRotation(Quaternion_ax, Quaternion_by, Quaternion_cz, Quaternion_w);
+        fBone->QuaternionCtx.setQuaternion(Quaternion_ax, Quaternion_by, Quaternion_cz, Quaternion_w);
         fBone->QuaternionCtx.setTranslate(Translate_x, Translate_y, Translate_z);
         fBone->QuaternionCtx.toMatrix();
         break;
     case PostureMode_Overlap_Mul:
         Quaternion.init();
-        Quaternion.setRotation(Quaternion_ax, Quaternion_by, Quaternion_cz, Quaternion_w);
+        Quaternion.setQuaternion(Quaternion_ax, Quaternion_by, Quaternion_cz, Quaternion_w);
         Quaternion.setTranslate(Translate_x, Translate_y, Translate_z);
         fBone->QuaternionCtx.mul(&Quaternion);
         fBone->QuaternionCtx.toMatrix();
         break;
     case PostureMode_Overlap_Add:
-        Quaternion.setRotation(Quaternion_ax, Quaternion_by, Quaternion_cz, Quaternion_w);
+        Quaternion.setQuaternion(Quaternion_ax, Quaternion_by, Quaternion_cz, Quaternion_w);
         Quaternion.setTranslate(Translate_x, Translate_y, Translate_z);
         fBone->QuaternionCtx.add(&Quaternion);
         fBone->QuaternionCtx.toMatrix();

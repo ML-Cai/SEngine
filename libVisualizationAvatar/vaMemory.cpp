@@ -169,12 +169,6 @@ generate_BoneMemory_Soruce_PMX(struct PolygonModeleXtendedContext *srcPMX)
                 IKChainUnit_ptr->UpBound[1]     = PMX_IKChainUnit_ptr->UpBound[1];
                 IKChainUnit_ptr->UpBound[2]     = PMX_IKChainUnit_ptr->UpBound[2];
                 IKChainUnit_ptr->IKQuaternion.init();
-                /*IKChainUnit_ptr->LowerBound[0]  = PMX_IKChainUnit_ptr->LowerBound[0] / 3.1415926535f;
-                IKChainUnit_ptr->LowerBound[1]  = PMX_IKChainUnit_ptr->LowerBound[1] / 3.1415926535f;
-                IKChainUnit_ptr->LowerBound[2]  = PMX_IKChainUnit_ptr->LowerBound[2] / 3.1415926535f;
-                IKChainUnit_ptr->UpBound[0]     = PMX_IKChainUnit_ptr->UpBound[0] / 3.1415926535f;
-                IKChainUnit_ptr->UpBound[1]     = PMX_IKChainUnit_ptr->UpBound[1] / 3.1415926535f;
-                IKChainUnit_ptr->UpBound[2]     = PMX_IKChainUnit_ptr->UpBound[2] / 3.1415926535f;*/
             }
             IKChain_ptr++;
         }
