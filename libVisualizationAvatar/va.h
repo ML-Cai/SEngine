@@ -54,6 +54,7 @@ struct vaSkeletonNodeContext {
 
     // transform matrix
     sutQuaternionOperator QuaternionCtx;
+    sutQuaternionOperator globalQuaternion;
     float *pBoneVertex;         //point to the rendering vertex of skeletion
     float TransformMatrix[16];  // TransformMatrix = [Rotation Base Matrix] [Quaternion Rotation Matrix] [-Rotation Base Matrix]
 };

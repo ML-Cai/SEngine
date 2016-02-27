@@ -172,7 +172,8 @@ namespace VisualizationSystem {
         */
         float           cVertex[3];
         float           augmentedMatrix[16];
-        sutQuaternionOperator IKQuaternion;
+        //sutQuaternionOperator Quaternion;
+        sutQuaternionOperator localQuaternion;
     };
 
     struct IKChainContext {

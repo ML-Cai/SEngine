@@ -9,7 +9,8 @@ static const float PI = 3.14159 /180.0f;
 //--------------------------------------------------------------------------------------
 void sutQuaternionOperator::init()
 {
-    isIdentity =1;
+    stateIdentity =1;
+    isMatrixchange =1;
     QuaternionCtx.a = 0.0f;
     QuaternionCtx.b = 0.0f;
     QuaternionCtx.c = 0.0f;
@@ -49,15 +50,33 @@ void sutQuaternionOperator::setTranslate(float Tx ,float Ty ,float Tz)
     QuaternionCtx.Translate[0] = Tx;
     QuaternionCtx.Translate[1] = Ty;
     QuaternionCtx.Translate[2] = Tz;
+    isMatrixchange =1;
+}
+//-------------------------------------------------------------------------------------
+void sutQuaternionOperator::fromRollPitchYaw(float radiusRoll , float radiusPitch , float radiusYaw)
+{
+    QuaternionCtx.w = cos(radiusRoll/2) *cos(radiusPitch/2) *cos(radiusYaw/2) +sin(radiusRoll/2) *sin(radiusPitch/2) *sin(radiusYaw/2);
+    QuaternionCtx.a = sin(radiusRoll/2) *cos(radiusPitch/2) *cos(radiusYaw/2) -cos(radiusRoll/2) *sin(radiusPitch/2) *sin(radiusYaw/2);
+    QuaternionCtx.b = cos(radiusRoll/2) *sin(radiusPitch/2) *cos(radiusYaw/2) +sin(radiusRoll/2) *cos(radiusPitch/2) *sin(radiusYaw/2);
+    QuaternionCtx.c = cos(radiusRoll/2) *cos(radiusPitch/2) *sin(radiusYaw/2) -sin(radiusRoll/2) *sin(radiusPitch/2) *cos(radiusYaw/2);
+    isMatrixchange =1;
 }
 //-------------------------------------------------------------------------------------
 void sutQuaternionOperator::setQuaternion(float ax , float by , float cz, float w)
 {
-    QuaternionCtx.w = w;
-    QuaternionCtx.a = ax;
-    QuaternionCtx.b = by;
+    QuaternionCtx.w = w ;
+    QuaternionCtx.a = ax ;
+    QuaternionCtx.b = by ;
     QuaternionCtx.c = cz;
-    isIdentity = 0;
+    stateIdentity = 0;
+    isMatrixchange =1;
+   /* float Len = ax *ax + by *by + cz *cz + w *w;
+    float invMagnitude = (Len >0) ? 1.0f / sqrtf(Len) : 1.0f;
+    QuaternionCtx.w = w *invMagnitude;
+    QuaternionCtx.a = ax *invMagnitude;
+    QuaternionCtx.b = by *invMagnitude;
+    QuaternionCtx.c = cz *invMagnitude;
+    stateIdentity = 0;*/
 }
 //--------------------------------------------------------------------------------------
 void sutQuaternionOperator::asRotation(float RotationVector_x , float RotationVector_y ,float RotationVector_z ,float RotationAngle)
@@ -72,16 +91,21 @@ void sutQuaternionOperator::asRotation(float RotationVector_x , float RotationVe
     QuaternionCtx.b = RotationVector_y *invMagnitude *tmp_sin;
     QuaternionCtx.c = RotationVector_z *invMagnitude *tmp_sin;
     QuaternionCtx.w = cos(RotationAngle *0.5f *PI) ;
-    isIdentity = 0;
+    stateIdentity = 0;
+    isMatrixchange =1;
 }
 //--------------------------------------------------------------------------------------
 float *sutQuaternionOperator::getMatrix()
 {
+    if(isMatrixchange == 1) {
+        this->toMatrix();
+        isMatrixchange =0;
+    }
     return MatrixCtx[0];
 }
 
 //--------------------------------------------------------------------------------------
-float *sutQuaternionOperator::toMatrix()
+void sutQuaternionOperator::toMatrix()
 {
     /*MatrixCtx[0][0]= 1.0f - 2.0f *(QuaternionCtx.b *QuaternionCtx.b +QuaternionCtx.c *QuaternionCtx.c) ;
     MatrixCtx[1][0]= 2.0f * (QuaternionCtx.a *QuaternionCtx.b - QuaternionCtx.w *QuaternionCtx.c) ;
@@ -120,7 +144,6 @@ float *sutQuaternionOperator::toMatrix()
     MatrixCtx[1][3]= QuaternionCtx.Translate[1];
     MatrixCtx[2][3]= QuaternionCtx.Translate[2];
     MatrixCtx[3][3]= 1.0f;
-    return &MatrixCtx[0][0];
 }
 //--------------------------------------------------------------------------------------
 void sutQuaternionOperator::getTranslate(float *dstAry)
@@ -137,47 +160,65 @@ void sutQuaternionOperator::getQuaternion(float *dstAry)
     dstAry[3] = QuaternionCtx.w;
 }
 
-//--------------------------------------------------------------------------------------
-void sutQuaternionOperator::mul(sutQuaternionOperator *Multiplier)
+/** --------------------------------------------------------------------------------------
+ * CurrentQuaternion = CurrentQuaternion * Multiplier
+*/
+void sutQuaternionOperator::mul(sutQuaternionOperator *Multiplier, unsigned int inMode)
 {
+    struct sutQuaternionContext *LQuaternion, *RQuaternion;
     struct sutQuaternionContext tmp ;
-    if(isIdentity) {
+
+    if(Multiplier->isIdentity()) {
+        return;
+    }
+    if(stateIdentity) {
         tmp.a = Multiplier->QuaternionCtx.a;
         tmp.b = Multiplier->QuaternionCtx.b;
         tmp.c = Multiplier->QuaternionCtx.c;
         tmp.w = Multiplier->QuaternionCtx.w;
-        isIdentity = 0;
+        stateIdentity = 0;
     }
     else {
-        tmp.a = QuaternionCtx.w * Multiplier->QuaternionCtx.a +
-                QuaternionCtx.a * Multiplier->QuaternionCtx.w +
-                QuaternionCtx.b * Multiplier->QuaternionCtx.c -
-                QuaternionCtx.c * Multiplier->QuaternionCtx.b ;
-        tmp.b = QuaternionCtx.w * Multiplier->QuaternionCtx.b -
-                QuaternionCtx.a * Multiplier->QuaternionCtx.c +
-                QuaternionCtx.b * Multiplier->QuaternionCtx.w +
-                QuaternionCtx.c * Multiplier->QuaternionCtx.a ;
-        tmp.c = QuaternionCtx.w * Multiplier->QuaternionCtx.c +
-                QuaternionCtx.a * Multiplier->QuaternionCtx.b -
-                QuaternionCtx.b * Multiplier->QuaternionCtx.a +
-                QuaternionCtx.c * Multiplier->QuaternionCtx.w ;
-        tmp.w = QuaternionCtx.w * Multiplier->QuaternionCtx.w -
-                QuaternionCtx.a * Multiplier->QuaternionCtx.a -
-                QuaternionCtx.b * Multiplier->QuaternionCtx.b -
-                QuaternionCtx.c * Multiplier->QuaternionCtx.c;
+        if(inMode == INPUT_AS_LEFT) {
+            LQuaternion = &Multiplier->QuaternionCtx;
+            RQuaternion = &QuaternionCtx;
+        }
+        else {
+            LQuaternion = &QuaternionCtx;
+            RQuaternion = &Multiplier->QuaternionCtx;
+        }
+        tmp.a = LQuaternion->w * RQuaternion->a +
+                LQuaternion->a * RQuaternion->w +
+                LQuaternion->b * RQuaternion->c -
+                LQuaternion->c * RQuaternion->b ;
+        tmp.b = LQuaternion->w * RQuaternion->b -
+                LQuaternion->a * RQuaternion->c +
+                LQuaternion->b * RQuaternion->w +
+                LQuaternion->c * RQuaternion->a ;
+        tmp.c = LQuaternion->w * RQuaternion->c +
+                LQuaternion->a * RQuaternion->b -
+                LQuaternion->b * RQuaternion->a +
+                LQuaternion->c * RQuaternion->w ;
+        tmp.w = LQuaternion->w * RQuaternion->w -
+                LQuaternion->a * RQuaternion->a -
+                LQuaternion->b * RQuaternion->b -
+                LQuaternion->c * RQuaternion->c;
     }
-
-    /* Normalizing input vector */
-    float len = tmp.a *tmp.a + tmp.b*tmp.b + tmp.c*tmp.c + tmp.w*tmp.w;
-    float invMagnitude = (len < 0.00001) ? 1.0f : 1.0f / sqrtf(len);
-    QuaternionCtx.a = tmp.a *invMagnitude;
-    QuaternionCtx.b = tmp.b *invMagnitude;
-    QuaternionCtx.c = tmp.c *invMagnitude;
-    QuaternionCtx.w = tmp.w *invMagnitude;
-    QuaternionCtx.Translate[0] += Multiplier->QuaternionCtx.Translate[0] ;
-    QuaternionCtx.Translate[1] += Multiplier->QuaternionCtx.Translate[1] ;
-    QuaternionCtx.Translate[2] += Multiplier->QuaternionCtx.Translate[2] ;
+    QuaternionCtx.a = tmp.a ;
+    QuaternionCtx.b = tmp.b ;
+    QuaternionCtx.c = tmp.c ;
+    QuaternionCtx.w = tmp.w ;
+    QuaternionCtx.Translate[0] += Multiplier->QuaternionCtx.Translate[0];
+    QuaternionCtx.Translate[1] += Multiplier->QuaternionCtx.Translate[1];
+    QuaternionCtx.Translate[2] += Multiplier->QuaternionCtx.Translate[2];
+    isMatrixchange =1;
 }
+
+void sutQuaternionOperator::dump()
+{
+    printf("Quaternion x : %.5f, y : %.5f, z : %.5f, w : %.5f .... isIdentity %d\n", QuaternionCtx.a, QuaternionCtx.b, QuaternionCtx.c, QuaternionCtx.w, stateIdentity);
+}
+
 //--------------------------------------------------------------------------------------
 void sutQuaternionOperator::add(sutQuaternionOperator *Multiplier)
 {
@@ -185,14 +226,31 @@ void sutQuaternionOperator::add(sutQuaternionOperator *Multiplier)
     QuaternionCtx.b += Multiplier->QuaternionCtx.b;
     QuaternionCtx.c += Multiplier->QuaternionCtx.c;
     QuaternionCtx.w += Multiplier->QuaternionCtx.w;
-    QuaternionCtx.Translate[0] += Multiplier->QuaternionCtx.Translate[0] ;
-    QuaternionCtx.Translate[1] += Multiplier->QuaternionCtx.Translate[1] ;
-    QuaternionCtx.Translate[2] += Multiplier->QuaternionCtx.Translate[2] ;
+    QuaternionCtx.Translate[0] += Multiplier->QuaternionCtx.Translate[0];
+    QuaternionCtx.Translate[1] += Multiplier->QuaternionCtx.Translate[1];
+    QuaternionCtx.Translate[2] += Multiplier->QuaternionCtx.Translate[2];
+    isMatrixchange =1;
 }
 
-struct sutQuaternionContext *sutQuaternionOperator::getQuaternionCtx() {
+struct sutQuaternionContext *sutQuaternionOperator::getQuaternionCtx()
+{
+    if(stateIdentity) return NULL;
     return &QuaternionCtx;
 }
+
+//--------------------------------------------------------------------------------------
+void sutQuaternionOperator::normalize()
+{
+    float len = QuaternionCtx.a *QuaternionCtx.a + QuaternionCtx.b*QuaternionCtx.b + QuaternionCtx.c*QuaternionCtx.c + QuaternionCtx.w*QuaternionCtx.w;
+    float invMagnitude = (len < 0.00001) ? 1.0f : 1.0f / sqrtf(len);
+
+    QuaternionCtx.a = QuaternionCtx.a *invMagnitude;
+    QuaternionCtx.b = QuaternionCtx.b *invMagnitude;
+    QuaternionCtx.c = QuaternionCtx.c *invMagnitude;
+    QuaternionCtx.w = QuaternionCtx.w *invMagnitude;
+    isMatrixchange =1;
+}
+
 //--------------------------------------------------------------------------------------
 void sutQuaternionOperator::asConjugated()
 {
@@ -203,24 +261,52 @@ void sutQuaternionOperator::asConjugated()
     QuaternionCtx.b = -QuaternionCtx.b *invMagnitude;
     QuaternionCtx.c = -QuaternionCtx.c *invMagnitude;
     QuaternionCtx.w = QuaternionCtx.w *invMagnitude;
-}
-/*//--------------------------------------------------------------------------------------
-sutQuaternionOperator * quaternion_multiplication(sutQuaternionOperator *a , sutQuaternionOperator *b ) //create a unit quaternion
-{
-    sutQuaternionOperator* tmp= (sutQuaternionOperator*)malloc(sizeof(sutQuaternionOperator)) ;
-    tmp->QuaternionCtx.a = a->QuaternionCtx.w * b->QuaternionCtx.a + a->QuaternionCtx.a * b->QuaternionCtx.w + a->QuaternionCtx.b * b->QuaternionCtx.c - a->QuaternionCtx.c * b->QuaternionCtx.b ;
-    tmp->QuaternionCtx.b = a->QuaternionCtx.w * b->QuaternionCtx.b - a->QuaternionCtx.a * b->QuaternionCtx.c + a->QuaternionCtx.b * b->QuaternionCtx.w + a->QuaternionCtx.c * b->QuaternionCtx.a ;
-    tmp->QuaternionCtx.c = a->QuaternionCtx.w * b->QuaternionCtx.c + a->QuaternionCtx.a * b->QuaternionCtx.b - a->QuaternionCtx.b * b->QuaternionCtx.a + a->QuaternionCtx.c * b->QuaternionCtx.w ;
-    tmp->QuaternionCtx.w = a->QuaternionCtx.w * b->QuaternionCtx.w - a->QuaternionCtx.a * b->QuaternionCtx.a - a->QuaternionCtx.b * b->QuaternionCtx.b - a->QuaternionCtx.c * b->QuaternionCtx.c;
-    return tmp ;
+    isMatrixchange =1;
 }
 //--------------------------------------------------------------------------------------
-sutQuaternionOperator * quaternion_conjugated(sutQuaternionOperator *a) //create a unit quaternion
+void sutQuaternionOperator::asInverse()
 {
-    sutQuaternionOperator* tmp= (sutQuaternionOperator*)malloc(sizeof(sutQuaternionOperator)) ;
-    tmp->QuaternionCtx.a = -a->QuaternionCtx.a ;
-    tmp->QuaternionCtx.b = -a->QuaternionCtx.b ;
-    tmp->QuaternionCtx.c = -a->QuaternionCtx.c ;
-    tmp->QuaternionCtx.w = a->QuaternionCtx.w ;
-    return tmp ;
-}*/
+    float len = QuaternionCtx.a *QuaternionCtx.a + QuaternionCtx.b*QuaternionCtx.b + QuaternionCtx.c*QuaternionCtx.c + QuaternionCtx.w*QuaternionCtx.w;
+    float invMagnitude = (len < 0.00001) ? 1.0f : 1.0f / (len);
+
+    QuaternionCtx.a = -QuaternionCtx.a *invMagnitude;
+    QuaternionCtx.b = -QuaternionCtx.b *invMagnitude;
+    QuaternionCtx.c = -QuaternionCtx.c *invMagnitude;
+    QuaternionCtx.w =  QuaternionCtx.w *invMagnitude;
+    isMatrixchange =1;
+}
+
+//--------------------------------------------------------------------------------------
+int sutQuaternionOperator::isIdentity()
+{
+    return stateIdentity;
+}
+//--------------------------------------------------------------------------------------
+void sutQuaternionOperator::truncate(float uperRoll, float lowerRoll,
+                                     float uperPitch, float lowerPitch,
+                                     float uperYaw, float lowerYaw)
+{
+    /** Reference from :
+     * https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+    */
+    float x = QuaternionCtx.a;
+    float y = QuaternionCtx.b;
+    float z = QuaternionCtx.c;
+    float w = QuaternionCtx.w;
+    float radiusRoll  = atan2(2.0f *(w *x + y *z), 1.0f -2.0f *(x *x +y *y));
+    float radiusPitch = asin (2.0f *(w *y - z *x));
+    float radiusYaw   = atan2(2.0f *(w *z + x *y), 1.0f -2.0f *(y *y +z *z));
+
+    if(radiusRoll  > uperRoll)   radiusRoll  =  uperRoll;
+    else if(radiusRoll  < lowerRoll)  radiusRoll  =  lowerRoll;
+    if(radiusPitch > uperPitch)  radiusPitch =  uperPitch;
+    else if(radiusPitch < lowerPitch) radiusPitch =  lowerPitch;
+    if(radiusYaw   > uperYaw)    radiusYaw   =  uperYaw;
+    else if(radiusYaw   < lowerYaw)   radiusYaw   =  lowerYaw;
+
+    QuaternionCtx.w = cos(radiusRoll/2) *cos(radiusPitch/2) *cos(radiusYaw/2) +sin(radiusRoll/2) *sin(radiusPitch/2) *sin(radiusYaw/2);
+    QuaternionCtx.a = sin(radiusRoll/2) *cos(radiusPitch/2) *cos(radiusYaw/2) -cos(radiusRoll/2) *sin(radiusPitch/2) *sin(radiusYaw/2);
+    QuaternionCtx.b = cos(radiusRoll/2) *sin(radiusPitch/2) *cos(radiusYaw/2) +sin(radiusRoll/2) *cos(radiusPitch/2) *sin(radiusYaw/2);
+    QuaternionCtx.c = cos(radiusRoll/2) *cos(radiusPitch/2) *sin(radiusYaw/2) -sin(radiusRoll/2) *sin(radiusPitch/2) *cos(radiusYaw/2);
+    normalize();
+}

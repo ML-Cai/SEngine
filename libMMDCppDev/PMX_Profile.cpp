@@ -736,7 +736,7 @@ int PMX_profile::load(struct PolygonModeleXtendedContext *pmxCtx, const char *pm
         if(!parse_TextureInformation()) goto ANY_ERROR;
         if(!parse_MaterialInformation()) goto ANY_ERROR;
         if(!parse_BoneInformation()) goto ANY_ERROR;
-        if(!parse_MorphInformation()) goto ANY_ERROR;
+        //if(!parse_MorphInformation()) goto ANY_ERROR;
         //if(!parse_DisplayNameInformation()) goto ANY_ERROR;
         fclose(fModel);
 

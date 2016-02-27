@@ -19,7 +19,7 @@ size_t sutUTF8_to_ShiftJIS(char *inUTF8, size_t inUTF8Len, char *outSJIS, size_t
 {
 	iconv_t icCtx = iconv_open("SJIS", "UTF-8"); // iconv
 	size_t len = iconv(icCtx, &inUTF8, &inUTF8Len, &outSJIS, &outSJISLen);
-	if(len == (size_t)-1) printf("Fatal : Character set convert failed : %s\n", strerror(errno));
+    //if(len == (size_t)-1) printf("Fatal : Character set convert failed : %s\n", strerror(errno));
 	iconv_close(icCtx);
 	return len;
 }
@@ -39,7 +39,7 @@ size_t sutShiftJIS_to_UTF8(char *inSJIS, size_t inSJISLen, char *outUTF8, size_t
 {
     iconv_t icCtx = iconv_open("UTF-8", "SJIS"); // iconv
     size_t len = iconv(icCtx, &inSJIS, &inSJISLen, &outUTF8, &outUTF8Len);
-	if(len == (size_t)-1) printf("Fatal : Character set convert failed : %s\n", strerror(errno));
+    //if(len == (size_t)-1) printf("Fatal : Character set convert failed : %s\n", strerror(errno));
 	iconv_close(icCtx);
 	return len;
 }
@@ -60,7 +60,7 @@ size_t sutUTF16_to_UTF8(char *inUTF16, size_t inUTF16Len, char *outUTF8, size_t 
 {
     iconv_t icCtx = iconv_open("UTF-8", "UTF-16"); // iconv
     size_t len = iconv(icCtx, &inUTF16, &inUTF16Len, &outUTF8, &outUTF8Len);
-    if(len == (size_t)-1) printf("Fatal : Character set convert failed : %s\n", strerror(errno));
+    //if(len == (size_t)-1) printf("Fatal : Character set convert failed : %s\n", strerror(errno));
     iconv_close(icCtx);
     return len;
 }

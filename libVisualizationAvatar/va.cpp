@@ -88,7 +88,7 @@ generate_SkeletonArchitecture()
     skeletonCtx.chainNodeCount = memoryCtx->BoneMemory.BoneUnitCount ;
     skeletonCtx.chainNodeVertex = (float *)malloc(sizeof(float) * skeletonCtx.chainNodeCount *3);
     skeletonCtx.chainRoot.QuaternionCtx.init();
-    skeletonCtx.chainRoot.QuaternionCtx.toMatrix();
+    skeletonCtx.chainRoot.globalQuaternion.init();
     skeletonCtx.chainRoot.isTouch =0;
     skeletonCtx.chainRoot.nID = memoryCtx->BoneMemory.NullParentID;
     skeletonCtx.chainRoot.Parnet = NULL;
@@ -108,7 +108,7 @@ generate_SkeletonArchitecture()
         ChainNode_ptr->ChildCount = 0;
         ChainNode_ptr->VertexChainCount =0;
         ChainNode_ptr->QuaternionCtx.init();
-        ChainNode_ptr->QuaternionCtx.toMatrix();
+        ChainNode_ptr->globalQuaternion.init();
         ChainNode_ptr->pBoneVertex = skeletonCtx.chainNodeVertex + i *3 ;
         *pChainNodeVertex++ = ChainNode_ptr->pRawBoneInfo->BoneVertex[0] ;
         *pChainNodeVertex++ = ChainNode_ptr->pRawBoneInfo->BoneVertex[1];
@@ -257,7 +257,10 @@ generate_SkeletonSurface()
             *renderingIndex_Bone++ = SKELETON_RENDERING_NODE_ELEMENTS * i;
         }
         for(ei = 0 ; ei < SKELETON_RENDERING_NODE_ELEMENTS ; ei++) {
-            memcpy(renderingColor, &JointColorSet[0][0], sizeof(float) *4);
+            if(i == 14)
+                memcpy(renderingColor, &JointColorSet[1][0], sizeof(float) *4);
+            else
+                memcpy(renderingColor, &JointColorSet[0][0], sizeof(float) *4);
             memcpy(renderingVertex, pRawBoneInfo->BoneVertex, sizeof(float) *3);
             renderingVertex[3] = ei;
             renderingColor += 4;
@@ -283,33 +286,31 @@ setBoneQuaternion(int dstBone_ID, \
         return 0;
     }
 
+    // if quaternion is identity
+
     fBone->isTouch = 1;
     switch(setMode) {
     case PostureMode_Replace:
-        fBone->QuaternionCtx.setQuaternion(Quaternion_ax, Quaternion_by, Quaternion_cz, Quaternion_w);
+        if(!(Quaternion_ax == 0.0f &&  Quaternion_by == 0.0f && Quaternion_cz == 0.0f && Quaternion_w == 1.0f)) {
+            fBone->globalQuaternion.setQuaternion(Quaternion_ax, Quaternion_by, Quaternion_cz, Quaternion_w);
+            fBone->QuaternionCtx.setQuaternion(Quaternion_ax, Quaternion_by, Quaternion_cz, Quaternion_w);
+        }
         fBone->QuaternionCtx.setTranslate(Translate_x, Translate_y, Translate_z);
-        fBone->QuaternionCtx.toMatrix();
         break;
     case PostureMode_Overlap_Mul:
         Quaternion.init();
         Quaternion.setQuaternion(Quaternion_ax, Quaternion_by, Quaternion_cz, Quaternion_w);
         Quaternion.setTranslate(Translate_x, Translate_y, Translate_z);
-        fBone->QuaternionCtx.mul(&Quaternion);
-        fBone->QuaternionCtx.toMatrix();
+        fBone->QuaternionCtx.mul(&Quaternion, sutQuaternionOperator::INPUT_AS_LEFT);
         break;
     case PostureMode_Overlap_Add:
         Quaternion.setQuaternion(Quaternion_ax, Quaternion_by, Quaternion_cz, Quaternion_w);
         Quaternion.setTranslate(Translate_x, Translate_y, Translate_z);
         fBone->QuaternionCtx.add(&Quaternion);
-        fBone->QuaternionCtx.toMatrix();
     }
 
-    /*if(TargetDone_ID == 1) {
-        printf("%.6f %.6f %.6f %.6f\n", fBone->QuaternionCtx.getQuaternionCtx()->a,
-               fBone->QuaternionCtx.getQuaternionCtx()->b,
-               fBone->QuaternionCtx.getQuaternionCtx()->c,
-               fBone->QuaternionCtx.getQuaternionCtx()->w);
-    }*/
+    //printf("bID %d, set quaternion : ", fBone->nID);
+    //fBone->globalQuaternion.dump();
     return 1;
 }
 
@@ -350,6 +351,11 @@ void VisualizationAvatar::posture(vaPostureMemoryContext *poseCtx)
         // 1. update the transform matrix in each bone.
         vaMotionFunction_f->update_SkeletonTransformMatrix(&skeletonCtx, NULL);
 
+        // 2. normalize global quaternion.
+        for(ni = 0 ; ni < skeletonCtx.chainNodeCount ; ni++) {
+            (skeletonCtx.chainNodeSet +ni)->globalQuaternion.normalize();
+        }
+
         // 2. update the bone vertex in skeleton .
         vaMotionFunction_f->update_SkeletonVertex(&skeletonCtx, &skeletonCtx.chainRoot);
 
@@ -361,8 +367,10 @@ void VisualizationAvatar::posture(vaPostureMemoryContext *poseCtx)
         if(MaterializeElements & MaterializeElement_Skeleton) vaMotionFunction_f->update_SkeletonSurfaceVertex(&skeletonCtx);
 
         // 5. Distouch the node.
-        for(ni = 0 ; ni < skeletonCtx.chainNodeCount ; ni++)
+        for(ni = 0 ; ni < skeletonCtx.chainNodeCount ; ni++) {
             (skeletonCtx.chainNodeSet +ni)->isTouch = 0;
+            (skeletonCtx.chainNodeSet +ni)->globalQuaternion.init();
+        }
 
         gettimeofday(&pEnd, NULL);
         dTime = ((pEnd.tv_sec -pStart.tv_sec)*1000000.0 +(pEnd.tv_usec -pStart.tv_usec)) /1000.0f;

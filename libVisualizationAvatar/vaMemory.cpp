@@ -168,7 +168,7 @@ generate_BoneMemory_Soruce_PMX(struct PolygonModeleXtendedContext *srcPMX)
                 IKChainUnit_ptr->UpBound[0]     = PMX_IKChainUnit_ptr->UpBound[0];
                 IKChainUnit_ptr->UpBound[1]     = PMX_IKChainUnit_ptr->UpBound[1];
                 IKChainUnit_ptr->UpBound[2]     = PMX_IKChainUnit_ptr->UpBound[2];
-                IKChainUnit_ptr->IKQuaternion.init();
+                IKChainUnit_ptr->localQuaternion.init();
             }
             IKChain_ptr++;
         }

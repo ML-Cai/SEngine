@@ -189,6 +189,36 @@ calculate_SkeletonTransformMatrix(struct vaSkeletonNodeContext * fBone)
     MatrixOperator_Mul_3x1V_4x4M(PostiveVertex, matrix);
     MatrixOperator_Mul_4x4M_3x1V(matrix, NativeVertex);
     MatrixOperator_Mul_4x4M_4x4M(fBone->Parnet->TransformMatrix, matrix, fBone->TransformMatrix);
+    fBone->globalQuaternion.mul(&fBone->Parnet->globalQuaternion, sutQuaternionOperator::INPUT_AS_RIGHT);
+
+/*
+    printf("---------------- [ %2d , Parent %2d ]-------------------\n", fBone->nID, fBone->Parnet->nID);
+    printf("parent       : ");
+    fBone->Parnet->globalQuaternion.dump();
+    printf("bone         : ");
+    fBone->globalQuaternion.dump();
+
+    sutQuaternionContext *gga = fBone->Parnet->globalQuaternion.getQuaternionCtx();
+    sutQuaternionOperator globalInverseQuaternion;
+    globalInverseQuaternion.init();
+    if(fBone->globalQuaternion.isIdentity()) {
+
+    }
+    else {
+        if(!fBone->Parnet->globalQuaternion.isIdentity()) {
+            globalInverseQuaternion.setQuaternion(gga->a, gga->b, gga->c, gga->w);
+            globalInverseQuaternion.asInverse();
+        }
+    }
+
+    printf("*Q^-1        : ");
+    globalInverseQuaternion.dump();
+    fBone->globalQuaternion.mul(&globalInverseQuaternion, sutQuaternionOperator::INPUT_AS_RIGHT);
+    printf("new[*Q^-1]   : ");
+    fBone->globalQuaternion.dump();
+    fBone->globalQuaternion.mul(&fBone->Parnet->globalQuaternion, sutQuaternionOperator::INPUT_AS_LEFT);
+    printf("new[*Q   ]   : ");
+    fBone->globalQuaternion.dump();*/
 }
 
 /* ---------------------------------------------------------------------------------
@@ -209,7 +239,6 @@ update_SkeletonTransformMatrix(struct vaSkeletonTreeContext *skeletonCtx,
         calculate_SkeletonTransformMatrix(fBone);
     }
     else {  //The transform matrix in roochain is used to identify Obj asix and rotation.
-        fBone->QuaternionCtx.toMatrix();
         memcpy(fBone->TransformMatrix, fBone->QuaternionCtx.getMatrix(), sizeof(float)*16);
     }
 
@@ -553,6 +582,7 @@ update_SkeletonSurfaceVertex(struct vaSkeletonTreeContext *inSkeletonCtx)
     }
 }
 
+
 /** ---------------------------------------------------------------------------------
  * Update the vertex of bone with Inverse Kinematics
  * The algorithm implemented in this function is :
@@ -592,13 +622,13 @@ update_SkeletonSurfaceVertex(struct vaSkeletonTreeContext *inSkeletonCtx)
  * $disable_bID to prevent the augmented matrix superpose into child bond which is in the
  * same IK chain with parent bone.
 */
-inline void getVector(float *targetVertex, float *baseVertex, float *dstVector)
+static inline void getVector(float *targetVertex, float *baseVertex, float *dstVector)
 {
     dstVector[0] = targetVertex[0] - baseVertex[0];
     dstVector[1] = targetVertex[1] - baseVertex[1];
     dstVector[2] = targetVertex[2] - baseVertex[2];
 }
-inline void normalizeVector(float *dstVector)
+static inline void normalizeVector(float *dstVector)
 {
     float len = dstVector[0] * dstVector[0] + dstVector[1] * dstVector[1] + dstVector[2] * dstVector[2];
     len = (len > 0.0f) ? 1.0f / sqrtf(len) : 1.0f;
@@ -606,126 +636,23 @@ inline void normalizeVector(float *dstVector)
     dstVector[1] *= len;
     dstVector[2] *= len;
 }
-inline float getDotProduct(float *VectorA, float *VectorB)
+static inline float getDotProduct(float *VectorA, float *VectorB)
 {
     float DotProduct = VectorA[0] * VectorB[0] + VectorA[1] * VectorB[1] + VectorA[2] * VectorB[2];
     if(DotProduct > 1.0f) DotProduct = 1.0f;
     if(DotProduct < -1.0f) DotProduct = -1.0f;
     return DotProduct;
 }
-inline void getOuterProduct(float *VectorA, float *VectorB, float *dstOuterProduct)
+static inline void getOuterProduct(float *VectorA, float *VectorB, float *dstOuterProduct)
 {
     dstOuterProduct[0] = VectorA[1]* VectorB[2] - VectorA[2]* VectorB[1];
     dstOuterProduct[1] = VectorA[2]* VectorB[0] - VectorA[0]* VectorB[2];
     dstOuterProduct[2] = VectorA[0]* VectorB[1] - VectorA[1]* VectorB[0];
 }
 
-static float getVertex(float *baseVertex, float *parentVertex, float *dstVertex)
+static inline void CCD_getStepAugmentedMatrix(float *baseVertex, sutQuaternionOperator *IKQuaternionResult, float *augmentedMatrix)
 {
-
-}
-
-static float getRotationVector(float *targetVertex, float *reachVertex, float *baseVertex, float *dstOuterProduct)
-{
-    float vertexTR[3], vectorBR[3];
-    float DotProduct ;
-    getVector(targetVertex, baseVertex, vertexTR);
-    getVector(reachVertex, baseVertex, vectorBR);
-    normalizeVector(vertexTR);
-    normalizeVector(vectorBR);
-
-    DotProduct = getDotProduct(vertexTR, vectorBR);
-    getOuterProduct(vertexTR, vectorBR, dstOuterProduct);
-    return DotProduct;
-}
-
-static void getRotationSupportVertex(float *baseVertex, float *parentVertex, float *outerProduct, float dotProduct, float *dstsupportVertex)
-{
-    sutQuaternionOperator IKQuaternion;
     float matrix4x4[16];
-    float BoneVertexMatrix[16];
-    float invBoneVertexMatrix[16], augmentedMatrix[16], vertex[3];
-
-    IKQuaternion.init();
-    IKQuaternion.asRotation(outerProduct[0], outerProduct[1], outerProduct[2], acos(dotProduct) * 180.0f /3.1415926);
-    IKQuaternion.toMatrix();
-
-    dstsupportVertex[0] = -parentVertex[0];
-    dstsupportVertex[1] = -parentVertex[1];
-    dstsupportVertex[2] = -parentVertex[2];
-    memcpy(BoneVertexMatrix, IdentityMatrix, sizeof(float)*16);
-    memcpy(invBoneVertexMatrix, IdentityMatrix, sizeof(float)*16);
-    BoneVertexMatrix[3]     = baseVertex[0];
-    BoneVertexMatrix[7]     = baseVertex[1];
-    BoneVertexMatrix[11]    = baseVertex[2];
-    invBoneVertexMatrix[3]  = -baseVertex[0];
-    invBoneVertexMatrix[7]  = -baseVertex[1];
-    invBoneVertexMatrix[11] = -baseVertex[2];
-    MatrixOperator_Mul_4x4M_4x4M(BoneVertexMatrix, IKQuaternion.getMatrix(), matrix4x4);
-    MatrixOperator_Mul_4x4M_4x4M(matrix4x4, invBoneVertexMatrix, augmentedMatrix);
-    MulTransformMatrix(augmentedMatrix, dstsupportVertex ,1, vertex);
-    dstsupportVertex[0] = vertex[0];
-    dstsupportVertex[1] = vertex[1];
-    dstsupportVertex[2] = vertex[2];
-}
-
-static void truncateRotationAngle(float *baseVertex, float *parentVertex, float *supportVertex,
-                                  struct IKChainUnit *pIKUnit, float *rotationVector, float rotationDot,
-                                  float *augmentedMatrix)
-{
-    int xyz;
-    float vectorParentBase[3], vectorOriBase[3], vectorSupportBase[3];
-    float OuterProduct[3], vectorParent[3], vertexOri[3] = {-parentVertex[0], -parentVertex[1], -parentVertex[2]} ;
-    float componentsXYZ_ParentOri[3][3]={0.0f};
-    float componentsXYZ_ParentSupport[3]={0.0f} ;
-    float componentsA[3] = {0.0f}, componentsB[3] = {0.0f};
-    float dotProduct, outerProductParent[3], dotProductParent;
-    sutQuaternionOperator IKQuaternion, componentsQuaternion[3];
-
-    getVector(parentVertex, baseVertex, vectorParentBase);
-    normalizeVector(vectorParentBase);
-    getVector(vertexOri, baseVertex, vectorOriBase);
-    normalizeVector(vectorOriBase);
-    getVector(supportVertex, baseVertex, vectorSupportBase);
-    normalizeVector(vectorSupportBase);
-
-    // get each compoments XYZ
-    for(xyz = 0 ; xyz < 3 ; xyz++) { //parse each compoments
-        componentsA[0] = vectorOriBase[0];
-        componentsA[1] = vectorOriBase[1];
-        componentsA[2] = vectorOriBase[2];
-        componentsA[xyz] = 0.0f;
-        componentsB[0] = vectorParentBase[0];
-        componentsB[1] = vectorParentBase[1];
-        componentsB[2] = vectorParentBase[2];
-        componentsB[xyz] = 0.0f;
-
-        normalizeVector(componentsA);
-        normalizeVector(componentsB);
-        getOuterProduct(componentsA, componentsB, OuterProduct);
-        normalizeVector(OuterProduct);
-        /*if(OuterProduct[xyz] < 0) / cross product constant the normal as (1,0,0), (0,1,0) or (0,0,1)
-            dotProduct = 1.0f - getDotProduct(componentsA, componentsB);
-        else
-            dotProduct = getDotProduct(componentsA, componentsB);*/
-        dotProduct = getDotProduct(componentsA, componentsB);
-        printf("-----------------------------------------------------------\n");
-        printf("\tvectorOriBase %f %f %f,  vectorParentBase %f %f %f\n", vectorOriBase[0], vectorOriBase[1], vectorOriBase[2], vectorParentBase[0], vectorParentBase[1], vectorParentBase[2]);
-        printf("\tcomponentsA %f %f %f,  componentsB %f %f %f\n", componentsA[0], componentsA[1], componentsA[2], componentsB[0], componentsB[1], componentsB[2]);
-        printf("\tdotProduct %f , angle %f, Outerproduct %f %f %f\n",
-               dotProduct, acos(dotProduct) * 180.0f /3.1415926,
-               OuterProduct[0], OuterProduct[1], OuterProduct[2]);
-    }
-
-
-    printf("\n-------------------------------------------------------\n");
-
-    IKQuaternion.init();
-    IKQuaternion.asRotation(rotationVector[0], rotationVector[1], rotationVector[2], acos(rotationDot) * 180.0f /3.1415926);
-    IKQuaternion.toMatrix();
-
-
-    float matrix4x4[16], matrix4x4tmp[16];
     float BoneVertexMatrix[16];
     float invBoneVertexMatrix[16];
     memcpy(BoneVertexMatrix, IdentityMatrix, sizeof(float)*16);
@@ -738,89 +665,312 @@ static void truncateRotationAngle(float *baseVertex, float *parentVertex, float 
     invBoneVertexMatrix[11] = -baseVertex[2];
 
     // calculate the CCD matrix of bone
-    MatrixOperator_Mul_4x4M_4x4M(componentsQuaternion[0].getMatrix(), IKQuaternion.getMatrix(), matrix4x4tmp);
-    MatrixOperator_Mul_4x4M_4x4M(componentsQuaternion[1].getMatrix(), matrix4x4tmp, matrix4x4);
-    MatrixOperator_Mul_4x4M_4x4M(componentsQuaternion[2].getMatrix(), matrix4x4, matrix4x4tmp);
-    MatrixOperator_Mul_4x4M_4x4M(BoneVertexMatrix, matrix4x4tmp, matrix4x4);
+    MatrixOperator_Mul_4x4M_4x4M(BoneVertexMatrix, IKQuaternionResult->getMatrix(), matrix4x4);
     MatrixOperator_Mul_4x4M_4x4M(matrix4x4, invBoneVertexMatrix, augmentedMatrix);
-
-    // calculate the CCD matrix of bone
-    //MatrixOperator_Mul_4x4M_4x4M(BoneVertexMatrix, IKQuaternion.getMatrix(), matrix4x4);
-    //MatrixOperator_Mul_4x4M_4x4M(matrix4x4, invBoneVertexMatrix, augmentedMatrix);
-    exit(0);
 }
 
-static void getCCDAugmentedMatrix(float *baseVertex, float *rotationVector, float rotationDot, struct IKChainUnit *pIKUnit, float *augmentedMatrix)
+static inline float CCD_getRotationVector2(float *targetVertex, float *reachVertex, float *baseVertex,
+                                           struct IKChainUnit *pIKUnit, struct vaSkeletonNodeContext *pBone,
+                                           float *dstOuterProduct)
 {
-    //printf("\n------------------------------------------\ngetCCDAugmentedMatrix\n");
-    sutQuaternionOperator IKQuaternion, IKQuaternionResult, IKQuaternionTmp;
-    IKQuaternion.init();
-    IKQuaternion.asRotation(rotationVector[0], rotationVector[1], rotationVector[2], acos(rotationDot) * 180.0f /3.1415926);
-    IKQuaternion.toMatrix();
+    /*                  vertexTB     (Bone base)
+     *  (Bone Target)<--------------(Bone IK[0])-------------(Bone IK[1])
+     *                                 _|
+     *                               _|
+     *                             _|    vertexRB
+     *                            |
+     *                      (Bone reache )
+    */
+    sutQuaternionOperator globalInverseQuaternion;
 
+    struct sutQuaternionContext *QCtx = pBone->globalQuaternion.getQuaternionCtx();
+    globalInverseQuaternion.init();
+    if(QCtx != NULL) {
+        globalInverseQuaternion.setQuaternion(QCtx->a, QCtx->b, QCtx->c, QCtx->w);
+        globalInverseQuaternion.asInverse();
+    }
+
+    float vector[3], vertexTB[3], vectorRB[3];
+    getVector(targetVertex, baseVertex, vector);
+    normalizeVector(vector);
+    MulTransformMatrix(globalInverseQuaternion.getMatrix(), vector, 1, vertexTB);
+    getVector(reachVertex, baseVertex, vector);
+    normalizeVector(vector);
+    MulTransformMatrix(globalInverseQuaternion.getMatrix(), vector, 1, vectorRB);
+    getOuterProduct(vertexTB, vectorRB, dstOuterProduct);
+    return getDotProduct(vertexTB, vectorRB);
+}
+
+static void CCD_truncateIKQuaternion2(int ikID, float *rotationVector, float rotationDot, float maxStepRotationAngle,
+                                     struct IKChainUnit *pIKUnit, struct vaSkeletonNodeContext *pBone,
+                                     sutQuaternionOperator *dstIKQuaternion)
+{
+    float rotationRadius = acos(rotationDot);
+    float localRotationVector[3];
+
+    //printf("rotationDot %f , rotationRadius %f, maxStepRotationAngle %f", rotationDot, rotationRadius, maxStepRotationAngle);
+    if(rotationRadius > maxStepRotationAngle) rotationRadius = maxStepRotationAngle;
+    else if(rotationRadius < -maxStepRotationAngle) rotationRadius = -maxStepRotationAngle;
+    //printf(" .....rotationRadius %f\n",  rotationRadius);
+
+    if(!pIKUnit->isLimit) { // The bone without angle limit will used the original rotation vector to rotate directly.
+        dstIKQuaternion->init();
+        dstIKQuaternion->asRotation(rotationVector[0], rotationVector[1], rotationVector[2], rotationRadius * 180.0f /3.1415926f);
+    }
+    else {
+        sutQuaternionOperator globalInverseQuaternion, oldLocalQuaternion, newFullQuaternion;
+        float rotationRadius = acos(rotationDot);
+
+        if(rotationRadius > maxStepRotationAngle) rotationRadius = maxStepRotationAngle;
+        else if(rotationRadius < -maxStepRotationAngle) rotationRadius = -maxStepRotationAngle;
+
+        /* get the inverse global quaternion */
+        struct sutQuaternionContext *QCtx = pBone->globalQuaternion.getQuaternionCtx();
+        globalInverseQuaternion.init();
+        if(QCtx != NULL) {
+            globalInverseQuaternion.setQuaternion(QCtx->a, QCtx->b, QCtx->c, QCtx->w);
+            globalInverseQuaternion.asInverse();
+        }
+        //printf("\nglobalInverseQuaternion    ");
+        //globalInverseQuaternion.dump();
+
+        /* get inverse local quaternion */
+        QCtx = pIKUnit->localQuaternion.getQuaternionCtx();
+        oldLocalQuaternion.init();
+        if(QCtx != NULL) oldLocalQuaternion.setQuaternion(QCtx->a, QCtx->b, QCtx->c, QCtx->w);
+
+        /* get the specify rotation quaternion */
+        newFullQuaternion.init();
+        newFullQuaternion.asRotation(rotationVector[0], rotationVector[1], rotationVector[2], rotationRadius * 180.0f /3.1415926f);
+        newFullQuaternion.mul(&pIKUnit->localQuaternion, sutQuaternionOperator::INPUT_AS_RIGHT);    //---------> get new local rotation in this bone
+        newFullQuaternion.truncate(pIKUnit->UpBound[0], pIKUnit->LowerBound[0],       //----------> new local quaternion
+                                   pIKUnit->UpBound[1], pIKUnit->LowerBound[1],
+                                   pIKUnit->UpBound[2], pIKUnit->LowerBound[2]);
+        newFullQuaternion.normalize();
+        //newFullQuaternion.dump();
+
+        /*QCtx = newFullQuaternion.getQuaternionCtx();
+        dstIKQuaternion->init();
+        dstIKQuaternion->setQuaternion(QCtx->a, QCtx->b, QCtx->c, QCtx->w);
+        return;*/
+        //printf("oldLocalQuaternion 4    ");  newFullQuaternion.dump();
+
+        QCtx = newFullQuaternion.getQuaternionCtx();
+        pIKUnit->localQuaternion.setQuaternion(QCtx->a, QCtx->b, QCtx->c, QCtx->w);
+       // printf("pIKUnit->localQuaternion.dump   "); pIKUnit->localQuaternion.dump();
+
+        newFullQuaternion.mul(&pBone->globalQuaternion, sutQuaternionOperator::INPUT_AS_RIGHT);    //----------> new Full rotation quaternion
+
+        /*printf("ikID %d\n", ikID);
+        if(ikID !=0) {
+            QCtx = newFullQuaternion.getQuaternionCtx();
+            dstIKQuaternion->init();
+            dstIKQuaternion->setQuaternion(QCtx->a, QCtx->b, QCtx->c, QCtx->w);
+            printf("return\n");
+            return;
+        }*/
+
+       // printf("oldLocalQuaternion 5    ");  newFullQuaternion.dump();
+
+        /** Get the result quaternion.
+         * The result accumlate quaternion is defined as :
+         *
+         *      New Full Quaterion = Result Global Accumlate Quaternion * (Old local Quaternion * Global Quaternion).
+         *                                                                  |_________Old global rotation._________|
+         *      Assume :
+         *          Old local Quaternion : is unit quaternion.
+         *          Global Quaternion    : is unit quaternion.
+         *
+         *      New Global Accumlate Quaterion * (Old local Quaternion * Global Quaternion)^-1  =  Result Global Accumlate Quaternion * (Old local Quaternion * Global Quaternion) * (Old local Quaternion * Global Quaternion)^-1.
+         *
+         *      Result Accumlate Quaternion  = New Global Quaterion * (Old local Quaternion * Global Quaternion)^-1 ;
+        */
+        QCtx = newFullQuaternion.getQuaternionCtx();
+        dstIKQuaternion->init();
+        dstIKQuaternion->setQuaternion(QCtx->a, QCtx->b, QCtx->c, QCtx->w);
+        oldLocalQuaternion.mul(&pBone->globalQuaternion, sutQuaternionOperator::INPUT_AS_RIGHT);
+        oldLocalQuaternion.normalize();
+        oldLocalQuaternion.asInverse();
+        dstIKQuaternion->mul(&oldLocalQuaternion, sutQuaternionOperator::INPUT_AS_RIGHT);
+    }
+}
+
+static inline float CCD_getRotationVector(float *targetVertex, float *reachVertex, float *baseVertex, float *dstOuterProduct)
+{
+    /*                  vertexTB     (Bone base)
+     *  (Bone Target)<--------------(Bone IK[0])-------------(Bone IK[1])
+     *                                 _|
+     *                               _|
+     *                             _|    vertexRB
+     *                            |
+     *                      (Bone reache )
+    */
+    float vertexTB[3], vectorRB[3];
+    getVector(targetVertex, baseVertex, vertexTB);
+    getVector(reachVertex, baseVertex, vectorRB);
+    normalizeVector(vertexTB);
+    normalizeVector(vectorRB);
+    getOuterProduct(vertexTB, vectorRB, dstOuterProduct);
+    return getDotProduct(vertexTB, vectorRB);
+}
+
+
+static void CCD_truncateIKQuaternion(float *rotationVector, float rotationDot, float maxStepRotationAngle,
+                                     struct IKChainUnit *pIKUnit, struct vaSkeletonNodeContext *pBone,
+                                     sutQuaternionOperator *dstIKQuaternion)
+{
+    float rotationRadius = acos(rotationDot);
+    float localRotationVector[3];
+
+    if(rotationRadius > maxStepRotationAngle) rotationRadius = maxStepRotationAngle;
+    else if(rotationRadius < -maxStepRotationAngle) rotationRadius = -maxStepRotationAngle;
+
+    if(!pIKUnit->isLimit) { // The bone without angle limit will used the original rotation vector to rotate directly.
+        dstIKQuaternion->init();
+        dstIKQuaternion->asRotation(rotationVector[0], rotationVector[1], rotationVector[2], rotationRadius * 180.0f /3.1415926f);
+    }
+    else {
+        sutQuaternionOperator globalInverseQuaternion, oldLocalQuaternion, newFullQuaternion;
+        float rotationRadius = acos(rotationDot);
+
+        if(rotationRadius > maxStepRotationAngle) rotationRadius = maxStepRotationAngle;
+        else if(rotationRadius < -maxStepRotationAngle) rotationRadius = -maxStepRotationAngle;
+
+        /* get the inverse global quaternion */
+        struct sutQuaternionContext *QCtx = pBone->globalQuaternion.getQuaternionCtx();
+        globalInverseQuaternion.init();
+        if(QCtx != NULL) {
+            globalInverseQuaternion.setQuaternion(QCtx->a, QCtx->b, QCtx->c, QCtx->w);
+            globalInverseQuaternion.asInverse();
+        }
+        printf("\nglobalInverseQuaternion    ");
+        globalInverseQuaternion.dump();
+
+        /* get inverse local quaternion */
+        QCtx = pIKUnit->localQuaternion.getQuaternionCtx();
+        oldLocalQuaternion.init();
+        if(QCtx != NULL) oldLocalQuaternion.setQuaternion(QCtx->a, QCtx->b, QCtx->c, QCtx->w);
+        //printf("oldLocalQuaternion    ");
+        //oldLocalQuaternion.dump();
+
+        /* get the specify rotation quaternion */
+        newFullQuaternion.init();
+        //newFullQuaternion.asRotation(rotationVector[0], rotationVector[1], rotationVector[2], rotationRadius * 180.0f /3.1415926f);
+        //printf("newFullQuaternion 1    ");  newFullQuaternion.dump();
+
+        newFullQuaternion.mul(&pIKUnit->localQuaternion, sutQuaternionOperator::INPUT_AS_RIGHT);  //---------> get new local rotation in this bone
+        newFullQuaternion.mul(&globalInverseQuaternion, sutQuaternionOperator::INPUT_AS_RIGHT);   //---------> get accumlate local rotation in this step
+
+        MulTransformMatrix(newFullQuaternion.getMatrix(), rotationVector, 1, localRotationVector);
+        newFullQuaternion.asRotation(localRotationVector[0], localRotationVector[1], localRotationVector[2], rotationRadius * 180.0f /3.1415926f);
+        printf("localRotationVector %f %f %f\n", rotationVector[0], rotationVector[1], rotationVector[2]);
+
+        newFullQuaternion.truncate(pIKUnit->UpBound[0], pIKUnit->LowerBound[0],       //----------> new local quaternion
+                                   pIKUnit->UpBound[1], pIKUnit->LowerBound[1],
+                                   pIKUnit->UpBound[2], pIKUnit->LowerBound[2]);
+        newFullQuaternion.normalize();
+        //printf("oldLocalQuaternion 4    ");  newFullQuaternion.dump();
+
+        QCtx = newFullQuaternion.getQuaternionCtx();
+        pIKUnit->localQuaternion.setQuaternion(QCtx->a, QCtx->b, QCtx->c, QCtx->w);
+       // printf("pIKUnit->localQuaternion.dump   "); pIKUnit->localQuaternion.dump();
+
+        newFullQuaternion.mul(&pBone->globalQuaternion, sutQuaternionOperator::INPUT_AS_RIGHT);    //----------> new Full rotation quaternion
+       // printf("oldLocalQuaternion 5    ");  newFullQuaternion.dump();
+
+        /** Get the result quaternion.
+         * The result accumlate quaternion is defined as :
+         *
+         *      New Full Quaterion = Result Global Accumlate Quaternion * (Old local Quaternion * Global Quaternion).
+         *                                                                  |_________Old global rotation._________|
+         *      Assume :
+         *          Old local Quaternion : is unit quaternion.
+         *          Global Quaternion    : is unit quaternion.
+         *
+         *      New Global Accumlate Quaterion * (Old local Quaternion * Global Quaternion)^-1  =  Result Global Accumlate Quaternion * (Old local Quaternion * Global Quaternion) * (Old local Quaternion * Global Quaternion)^-1.
+         *
+         *      Result Accumlate Quaternion  = New Global Quaterion * (Old local Quaternion * Global Quaternion)^-1 ;
+        */
+        QCtx = newFullQuaternion.getQuaternionCtx();
+        dstIKQuaternion->init();
+        dstIKQuaternion->setQuaternion(QCtx->a, QCtx->b, QCtx->c, QCtx->w);
+        oldLocalQuaternion.mul(&pBone->globalQuaternion, sutQuaternionOperator::INPUT_AS_RIGHT);
+        oldLocalQuaternion.normalize();
+        oldLocalQuaternion.asInverse();
+        dstIKQuaternion->mul(&oldLocalQuaternion, sutQuaternionOperator::INPUT_AS_RIGHT);
+    }
+}
+
+static void getCCDAugmentedMatrix(float *baseVertex, float *rotationVector, float rotationDot, float maxAngle,
+                                  struct IKChainUnit *pIKUnit, struct vaSkeletonNodeContext *pBone,
+                                  float *augmentedMatrix, sutQuaternionOperator *IKQuaternionResult)
+{
+    /** Reference from :
+     * https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+    */
+    sutQuaternionOperator globalInverseQuaternion, IKQuaternion, IKQuaternionTmp;
     float quaternionTruncate[4], quaternionNew[4], quaternionOld[4]  ;
+    float rotationRadius = acos(rotationDot);
 
-    pIKUnit->IKQuaternion.getQuaternion(quaternionOld);
-    pIKUnit->IKQuaternion.mul(&IKQuaternion);
-    pIKUnit->IKQuaternion.getQuaternion(quaternionNew);
+    if(rotationRadius > maxAngle) rotationRadius = maxAngle;
+    else if(rotationRadius < -maxAngle) rotationRadius = -maxAngle;
+
+    /* get the inverse global quaternion */
+    struct sutQuaternionContext *gga = pBone->globalQuaternion.getQuaternionCtx();
+    globalInverseQuaternion.init();
+    globalInverseQuaternion.setQuaternion(gga->a, gga->b, gga->c, gga->w);
+    globalInverseQuaternion.asInverse();
+
+    /* temporate the last local quaternion */
+    pIKUnit->localQuaternion.getQuaternion(quaternionOld);
+
+    /* get the specify rotation quaternion */
+    IKQuaternion.init();
+    IKQuaternion.asRotation(rotationVector[0], rotationVector[1], rotationVector[2], rotationRadius * 180.0f /3.1415926f);
+    IKQuaternion.mul(&globalInverseQuaternion, sutQuaternionOperator::INPUT_AS_RIGHT);
+    IKQuaternion.mul(&pIKUnit->localQuaternion, sutQuaternionOperator::INPUT_AS_RIGHT); //---------> get the local rotation in this bone
+    IKQuaternion.getQuaternion(quaternionNew);
     float x = quaternionNew[0];
     float y = quaternionNew[1];
     float z = quaternionNew[2];
     float w = quaternionNew[3];
     float radiusRoll  = atan2(2.0f *(w *x + y *z), 1.0f -2.0f *(x *x +y *y));
-    float radiusPitch = asin (2.0f *(w *x - y *z));
+    float radiusPitch = asin (2.0f *(w *y - z *x));
     float radiusYaw   = atan2(2.0f *(w *z + x *y), 1.0f -2.0f *(y *y +z *z));
 
-    if(radiusRoll  > pIKUnit->UpBound[0]) radiusRoll        =  pIKUnit->UpBound[0];
-    if(radiusRoll  < pIKUnit->LowerBound[0]) radiusRoll     =  pIKUnit->LowerBound[0];
-    if(radiusPitch > pIKUnit->UpBound[1]) radiusPitch       =  pIKUnit->UpBound[1];
-    if(radiusPitch < pIKUnit->LowerBound[1]) radiusPitch    =  pIKUnit->LowerBound[1];
-    if(radiusYaw   > pIKUnit->UpBound[2]) radiusYaw         =  pIKUnit->UpBound[2];
-    if(radiusYaw   < pIKUnit->LowerBound[2]) radiusYaw      =  pIKUnit->LowerBound[2];
-
+    if(pIKUnit->isLimit) {  // truncate rotation angle
+        if(radiusRoll  > pIKUnit->UpBound[0])       radiusRoll  =  pIKUnit->UpBound[0];
+        if(radiusRoll  < pIKUnit->LowerBound[0])    radiusRoll  =  pIKUnit->LowerBound[0];
+        if(radiusPitch > pIKUnit->UpBound[1])       radiusPitch =  pIKUnit->UpBound[1];
+        if(radiusPitch < pIKUnit->LowerBound[1])    radiusPitch =  pIKUnit->LowerBound[1];
+        if(radiusYaw   > pIKUnit->UpBound[2])       radiusYaw   =  pIKUnit->UpBound[2];
+        if(radiusYaw   < pIKUnit->LowerBound[2])    radiusYaw   =  pIKUnit->LowerBound[2];
+    }
     quaternionTruncate[0] = cos(radiusRoll/2) *cos(radiusPitch/2) *cos(radiusYaw/2) +sin(radiusRoll/2) *sin(radiusPitch/2) *sin(radiusYaw/2);
     quaternionTruncate[1] = sin(radiusRoll/2) *cos(radiusPitch/2) *cos(radiusYaw/2) -cos(radiusRoll/2) *sin(radiusPitch/2) *sin(radiusYaw/2);
     quaternionTruncate[2] = cos(radiusRoll/2) *sin(radiusPitch/2) *cos(radiusYaw/2) +sin(radiusRoll/2) *cos(radiusPitch/2) *sin(radiusYaw/2);
     quaternionTruncate[3] = cos(radiusRoll/2) *cos(radiusPitch/2) *sin(radiusYaw/2) -sin(radiusRoll/2) *sin(radiusPitch/2) *cos(radiusYaw/2);
-    pIKUnit->IKQuaternion.init();
-    pIKUnit->IKQuaternion.setQuaternion(quaternionTruncate[1], quaternionTruncate[2], quaternionTruncate[3], quaternionTruncate[0]);
-    pIKUnit->IKQuaternion.toMatrix();
-    pIKUnit->IKQuaternion.getQuaternion(quaternionTruncate);
+    pIKUnit->localQuaternion.init();
+    pIKUnit->localQuaternion.setQuaternion(quaternionTruncate[1], quaternionTruncate[2], quaternionTruncate[3], quaternionTruncate[0]);
+    pIKUnit->localQuaternion.normalize();
 
-    /** Assume :
-     *      pIKUnit->IKQuaternion(Truncate) = IKQuaternionResult * pIKUnit->IKQuaternion(Old)
+    /**
+     * Assume :
+     *      pIKUnit->localQuaternion(Truncate) = IKQuaternionResult * pIKUnit->localQuaternion(Old)
      *
-     * Multiple the Inverse(pIKUnit->IKQuaternion(Old)) :
-     *      pIKUnit->IKQuaternion(Truncate) * Inverse(pIKUnit->IKQuaternion(Old)) = IKQuaternionResult * pIKUnit->IKQuaternion(Old) * Inverse(pIKUnit->IKQuaternion(Old))
+     * Multiple the Inverse(pIKUnit->localQuaternion(Old)) :
+     *      pIKUnit->localQuaternion(Truncate) * Inverse(pIKUnit->localQuaternion(Old)) = IKQuaternionResult * pIKUnit->localQuaternion(Old) * Inverse(pIKUnit->localQuaternion(Old))
      *
      * Then :
-     *      IKQuaternionResult = pIKUnit->IKQuaternion(Truncate) * Inverse(pIKUnit->IKQuaternion(Old))
+     *      IKQuaternionResult = pIKUnit->localQuaternion(Truncate) * Inverse(pIKUnit->localQuaternion(Old))
     */
     IKQuaternionTmp.init();
     IKQuaternionTmp.setQuaternion(quaternionOld[0], quaternionOld[1],quaternionOld[2],quaternionOld[3]);
-    IKQuaternionTmp.asConjugated();
-    IKQuaternionResult.init();
-    IKQuaternionResult.setQuaternion(quaternionTruncate[0], quaternionTruncate[1],quaternionTruncate[2], quaternionTruncate[3]);
-    IKQuaternionResult.mul(&IKQuaternionTmp);
-    IKQuaternionResult.toMatrix();
-
-    /** Assume :
-     *      pIKUnit->IKQuaternion(Truncate) = pIKUnit->IKQuaternion(Old) * IKQuaternionResult
-     *
-     * Multiple the Inverse(pIKUnit->IKQuaternion(Old)) :
-     *      Inverse(pIKUnit->IKQuaternion(Old)) * pIKUnit->IKQuaternion(Truncate) = Inverse(pIKUnit->IKQuaternion(Old)) * pIKUnit->IKQuaternion(Old) * IKQuaternionResult
-     *
-     * Then :
-     *      IKQuaternionResult = Inverse(pIKUnit->IKQuaternion(Old)) * pIKUnit->IKQuaternion(Truncate);
-     *
-    */
-    /*IKQuaternionTmp.init();
-    IKQuaternionTmp.setQuaternion(quaternionOld[0], quaternionOld[1],quaternionOld[2],quaternionOld[3]);
-    IKQuaternionTmp.asConjugated();
-    IKQuaternionResult.init();
-    IKQuaternionResult.setQuaternion(quaternionTruncate[0], quaternionTruncate[1],quaternionTruncate[2], quaternionTruncate[3]);
-    IKQuaternionTmp.mul(&IKQuaternionResult);
-    IKQuaternionTmp.toMatrix();*/
+    IKQuaternionTmp.asInverse();
+    IKQuaternionResult->init();
+    IKQuaternionResult->setQuaternion(quaternionTruncate[1], quaternionTruncate[2], quaternionTruncate[3], quaternionTruncate[0]);
+    IKQuaternionResult->mul(&IKQuaternionTmp, sutQuaternionOperator::INPUT_AS_RIGHT);
+    IKQuaternionResult->mul(&pBone->globalQuaternion, sutQuaternionOperator::INPUT_AS_LEFT);
 
     float matrix4x4[16];
     float BoneVertexMatrix[16];
@@ -835,7 +985,7 @@ static void getCCDAugmentedMatrix(float *baseVertex, float *rotationVector, floa
     invBoneVertexMatrix[11] = -baseVertex[2];
 
     // calculate the CCD matrix of bone
-    MatrixOperator_Mul_4x4M_4x4M(BoneVertexMatrix, IKQuaternionResult.getMatrix(), matrix4x4);
+    MatrixOperator_Mul_4x4M_4x4M(BoneVertexMatrix, IKQuaternionResult->getMatrix(), matrix4x4);
     MatrixOperator_Mul_4x4M_4x4M(matrix4x4, invBoneVertexMatrix, augmentedMatrix);
 }
 
@@ -864,7 +1014,6 @@ static void CCD_calcAugmentedMatrix(float *targetVertex, float *reachVertex, flo
    // if(DotProduct > maxAngle) DotProduct = maxAngle;
     IKQuaternion.init();
     IKQuaternion.asRotation(OuterProduct[0], OuterProduct[1], OuterProduct[2], acos(DotProduct) * 180.0f /3.1415926);
-    IKQuaternion.toMatrix();
 
     float matrix4x4[16];
     float BoneVertexMatrix[16];
@@ -893,7 +1042,33 @@ update_InverseKinematics(struct vaMemoryContext *vaMemory,
     float matrix4x4[16], vertex3[3];
     float tVertex[3], tAugmentedMatrix[16]; // the vertex and augmented matrix of target bone.
 
+
+    /*for(iki = 0 ; iki < vaMemory->BoneMemory.IKChainCount ; iki++) {
+        struct IKChainContext *pIKChain = vaMemory->BoneMemory.IKChain + iki;
+        for(ci = 0 ; ci < pIKChain->IKChainCount  ; ci++) {
+            struct IKChainUnit *pIKUnit = (pIKChain->IKChain + ci);
+            struct IKChainUnit *pIKUnitNext = (pIKChain->IKChain + ci - 1);
+            struct vaSkeletonNodeContext *pBone = (skeletonCtx->chainNodeSet + pIKUnit->LinkBone);
+            //superpose_IKAugmentedMatrix(pBone, pIKUnit->augmentedMatrix, bIDNext);
+
+            sutQuaternionOperator globalInverseQuaternion;
+            struct sutQuaternionContext *gga = pBone->globalQuaternion.getQuaternionCtx();
+            globalInverseQuaternion.init();
+            globalInverseQuaternion.setQuaternion(gga->a, gga->b, gga->c, gga->w);
+            globalInverseQuaternion.asInverse();
+            globalInverseQuaternion.dump();
+
+            float matrix4x4f[16], vertrex3f[3];
+            MatrixOperator_Mul_4x4M_4x4M(globalInverseQuaternion.getMatrix(), pBone->TransformMatrix, matrix4x4f);
+            memcpy(pBone->TransformMatrix, matrix4x4f, sizeof(float) *16);
+            MulTransformMatrix(globalInverseQuaternion.getMatrix(), pBone->pBoneVertex, 1.0f, vertrex3f);
+            memcpy(pBone->pBoneVertex, vertrex3f, sizeof(float) *3);
+        }
+    }
+    return;*/
+
     for(iki = 0 ; iki < vaMemory->BoneMemory.IKChainCount ; iki++) {
+   // for(iki = 0 ; iki < 1 ; iki++) {
         struct IKChainContext *pIKChain = vaMemory->BoneMemory.IKChain + iki;
         struct vaSkeletonNodeContext *targetBone = (skeletonCtx->chainNodeSet + pIKChain->TargetBoneID);
         float *ReachVertex = (skeletonCtx->chainNodeSet + pIKChain->ReachBoneID)->pBoneVertex;
@@ -907,46 +1082,74 @@ update_InverseKinematics(struct vaMemoryContext *vaMemory,
             struct vaSkeletonNodeContext *pBone = (skeletonCtx->chainNodeSet + pIKUnit->LinkBone);
             memcpy(pIKUnit->cVertex, pBone->pBoneVertex, sizeof(float) *3);
             memcpy(pIKUnit->augmentedMatrix, IdentityMatrix, sizeof(float) *16);
-            pIKUnit->IKQuaternion.init();
+            pIKUnit->localQuaternion.init();
         }
 
         // apply CCD algorithm (IK algorithm)
+       // maxIterations = 1;
         while(maxIterations >0) {
             maxIterations--;
+            //printf("\nmaxIterations %d\n", maxIterations);
             for(ci = 0 ; ci < pIKChain->IKChainCount ; ci++) {
+                //if(ci >2) break;
                 struct IKChainUnit *pIKUnit = (pIKChain->IKChain + ci);
+                struct vaSkeletonNodeContext *pBone = (skeletonCtx->chainNodeSet + pIKUnit->LinkBone);
                 float *baseVertex = pIKUnit->cVertex;
-                float CCDStepMatrix[16];
+                float dotProduct, outerProduct[3], CCDStepMatrix[16];
+                sutQuaternionOperator IKStepQuaternion;
 
-                // Calculate the Step matrix by CCD algorithm.
-                if(pIKUnit->isLimit ) {
-                    /** Below algorithm is under construct.
-                    */
-                    struct vaSkeletonNodeContext *pIKBone = (skeletonCtx->chainNodeSet + pIKUnit->LinkBone);
-                    float dotProduct, outerProduct[3], supportVertex[3];
-                    dotProduct = getRotationVector(tVertex, ReachVertex, baseVertex, outerProduct);
-                    getRotationSupportVertex(baseVertex, pIKBone->Parnet->pBoneVertex, outerProduct, dotProduct, supportVertex);
-                    getCCDAugmentedMatrix(baseVertex, outerProduct, dotProduct, pIKUnit, CCDStepMatrix);
-                }
-                else {
-                    CCD_calcAugmentedMatrix(tVertex, ReachVertex, baseVertex, pIKChain->MaxAngle, CCDStepMatrix);
-                }
+                /** Test1 Calculate the step matrix by CCD algorithm.
+                //CCD_calcAugmentedMatrix(tVertex, ReachVertex, baseVertex, pIKChain->MaxAngle, CCDStepMatrix);
+                */
+
+                /** Test 2
+                dotProduct = getRotationVector(tVertex, ReachVertex, baseVertex, pBone, outerProduct);
+                getCCDAugmentedMatrix(baseVertex, outerProduct, dotProduct, pIKChain->MaxAngle, pIKUnit, pBone, CCDStepMatrix, &IKStepQuaternion);
+                */
+
+                //dotProduct = CCD_getRotationVector(tVertex, ReachVertex, baseVertex, outerProduct);
+                //IKStepQuaternion.asRotation(outerProduct[0], outerProduct[1], outerProduct[2], acos(dotProduct) * 180.0f /3.14152);
+                //CCD_getStepAugmentedMatrix(baseVertex, &IKStepQuaternion, CCDStepMatrix);
+
+                //** Test 3
+               // dotProduct = CCD_getRotationVector(tVertex, ReachVertex, baseVertex, outerProduct);
+                //CCD_truncateIKQuaternion(outerProduct, dotProduct, pIKChain->MaxAngle, pIKUnit, pBone, &IKStepQuaternion);
+                if(pIKUnit->isLimit)
+                    dotProduct = CCD_getRotationVector2(tVertex, ReachVertex, baseVertex,  pIKUnit, pBone, outerProduct);
+                else
+                    dotProduct = CCD_getRotationVector(tVertex, ReachVertex, baseVertex, outerProduct);
+                CCD_truncateIKQuaternion2(ci, outerProduct, dotProduct, pIKChain->MaxAngle, pIKUnit, pBone, &IKStepQuaternion);
+                CCD_getStepAugmentedMatrix(baseVertex, &IKStepQuaternion, CCDStepMatrix);
+             //   printf("rotation : "); IKStepQuaternion.dump();
+
+
+                //dotProduct = CCD_getRotationVector(tVertex, ReachVertex, baseVertex, outerProduct);
+                //getCCDAugmentedMatrix(baseVertex, outerProduct, dotProduct, pIKChain->MaxAngle, pIKUnit, pBone, CCDStepMatrix, &IKStepQuaternion);
+                //CCD_calcAugmentedMatrix(tVertex, ReachVertex, baseVertex, pIKChain->MaxAngle, CCDStepMatrix);
 
                 // Superpose the matrix into the vertex & matrix on "nodes in the IK chain".
                 for(ui = 0 ; ui <= ci ; ui++) {
                     struct IKChainUnit *pUnit = (pIKChain->IKChain + ui);
+                    struct vaSkeletonNodeContext *pIKBone = (skeletonCtx->chainNodeSet + pUnit->LinkBone);
                     MatrixOperator_Mul_4x4M_4x4M(CCDStepMatrix, pUnit->augmentedMatrix, matrix4x4);
                     memcpy(pUnit->augmentedMatrix, matrix4x4, sizeof(float)*16);
                     MulTransformMatrix(CCDStepMatrix, pUnit->cVertex ,1 ,vertex3);
                     memcpy(pUnit->cVertex, vertex3, sizeof(float)*3);
-                }
 
+                    if(ui != ci) {
+                        pIKBone->globalQuaternion.mul(&IKStepQuaternion, sutQuaternionOperator::INPUT_AS_LEFT);
+                    }
+                }
                 //superpose the matrix into vertex & matrix of "target node"
                 MatrixOperator_Mul_4x4M_4x4M(CCDStepMatrix, tAugmentedMatrix ,matrix4x4);
                 memcpy(tAugmentedMatrix, matrix4x4, sizeof(float)*16);
                 MulTransformMatrix(CCDStepMatrix, tVertex ,1, vertex3);
                 memcpy(tVertex, vertex3, sizeof(float)*3);
             }
+            /* check the offset between reach and target node */
+            float offset[3] = {tVertex[0] - ReachVertex[0], tVertex[1]- ReachVertex[1], tVertex[2]- ReachVertex[2]};
+            float accuracy = offset[0] * offset[0] + offset[1] * offset[1] + offset[2] * offset[2];
+            if(accuracy < 0.001f) break;
         }
 
         // feedback the augmented matrix and new vertex into the child of IK chain.
